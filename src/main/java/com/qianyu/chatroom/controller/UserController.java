@@ -17,11 +17,13 @@ import java.math.BigInteger;
 public class UserController {
     @Autowired
     private UserService userService;
-    
+
     @Autowired
     private JwtUtil jwtUtil;
     /**
-     *
+     * 用户登录
+     * @param user
+     * @return 查询到的用户信息
      * */
     @PostMapping("/login")
     public ReturnBody Login(@Validated @RequestBody Users user){
@@ -38,6 +40,11 @@ public class UserController {
         LoginResponse loginResponse = new LoginResponse(token, rUser);
         return ReturnBody.Success("200","登录成功",loginResponse);
     };
+    /**
+     * 用户注册
+     * @param user
+     * @return ReturnBody
+     * */
     @PostMapping("/register")
     public ReturnBody Register(@Validated @RequestBody Users user){
         boolean flag = userService.register(user);
@@ -46,6 +53,10 @@ public class UserController {
         }
         return ReturnBody.Success("200","注册成功",null);
     }
+
+    /**
+     * 用户登出
+     **/
     @PostMapping("/logout")
     public ReturnBody Logout(){
         // 获取当前登录用户ID（从SecurityContext中获取）
