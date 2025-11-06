@@ -27,4 +27,7 @@ public class ReturnBody {
     public static ReturnBody Error(String code,String message){
         return new ReturnBody(code,message);
     }
+    public static ReturnBody Success(String code,String message){
+        return new ReturnBody(code,message);
+    }
 }

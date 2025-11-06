@@ -1,4 +1,4 @@
-package com.qianyu.chatroom.dao;
+package com.qianyu.chatroom.mapper;
 
 import com.qianyu.chatroom.entry.Users;
 import org.apache.ibatis.annotations.Insert;
@@ -18,4 +18,7 @@ public interface UserMapper {
     boolean insertUser(Users user);
     @Select("select id, username, nickname, avatar from users where id = #{id}")
     Users findUserById(BigInteger id);
+    @Update("update users set nickname = #{nickname}, avatar=#{avatar} where id = #{id}")
+    boolean updateUserById(Users user);
+
 }

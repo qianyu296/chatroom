@@ -1,6 +1,6 @@
 package com.qianyu.chatroom;
 
-import com.qianyu.chatroom.dao.UserMapper;
+import com.qianyu.chatroom.mapper.UserMapper;
 import com.qianyu.chatroom.entry.Users;
 import com.qianyu.chatroom.service.UserService;
 import org.junit.jupiter.api.Test;
