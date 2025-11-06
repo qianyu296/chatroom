@@ -3,9 +3,11 @@ package com.qianyu.chatroom.controller;
 import com.qianyu.chatroom.entry.LoginResponse;
 import com.qianyu.chatroom.entry.ReturnBody;
 import com.qianyu.chatroom.entry.Users;
+import com.qianyu.chatroom.entry.vo.UserInfoVO;
 import com.qianyu.chatroom.service.UserService;
 import com.qianyu.chatroom.util.JwtUtil;
 import com.qianyu.chatroom.util.SecurityContextUtil;
+import org.apache.ibatis.annotations.Param;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -93,4 +95,31 @@ public class UserController {
         
         return ReturnBody.Success("200","获取成功",currentUser);
     }
+    /**
+     * 更新用户信息
+     * @param user
+     * @return 更新后的用户信息
+     * */
+    @PutMapping("/update")
+    public ReturnBody updateUser(@RequestBody Users user){
+        UserInfoVO res = userService.updateUser(user);
+        if(res == null){
+            return ReturnBody.Error("400","更新失败");
+        }
+        return ReturnBody.Success("200","更新成功", res);
+    }
+    /**
+     * 搜索用户（可添加好友）
+     * @param username
+     * @return 无用户/搜索到的唯一用户
+     * */
+    @GetMapping("/search/{username}")
+    public ReturnBody searchUser(@PathVariable String username){
+        UserInfoVO userInfo = userService.searchUser(username);
+        if(userInfo == null){
+            return ReturnBody.Error("400","未搜索到该用户!");
+        }
+        return ReturnBody.Success("200","success",userInfo);
+    }
+
 }
