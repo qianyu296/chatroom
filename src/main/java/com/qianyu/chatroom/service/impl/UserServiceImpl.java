@@ -1,6 +1,5 @@
 package com.qianyu.chatroom.service.impl;
 
-import com.qianyu.chatroom.entry.ReturnBody;
 import com.qianyu.chatroom.entry.vo.UserInfoVO;
 import com.qianyu.chatroom.mapper.UserMapper;
 import com.qianyu.chatroom.entry.Users;
@@ -41,6 +40,11 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public boolean register(Users user) {
+        // 检查用户名是否已存在
+        Users existing = userMapper.findUserByUsername(user.getUsername());
+        if (existing != null) {
+            throw new IllegalStateException("用户名已存在");
+        }
         user.setPassword(bCryptPasswordEncoder.encode(user.getPassword()));
         user.setCreateTime(new Date().getTime());
         user.setUpdateTime(new Date().getTime());
@@ -75,10 +79,11 @@ public class UserServiceImpl implements UserService {
             return null;
         }
         UserInfoVO userInfo = new UserInfoVO();
+        // 只返回必要信息，不返回用户ID（防止信息泄露）
         userInfo.setUsername(findUser.getUsername());
         userInfo.setNickname(findUser.getNickname());
         userInfo.setAvatar(findUser.getAvatar());
-        userInfo.setId(findUser.getId());
+        // 注意：不再设置 id 字段
         return userInfo;
     }
 }

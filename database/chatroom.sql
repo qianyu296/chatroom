@@ -198,7 +198,7 @@ CREATE TABLE IF NOT EXISTS `user_sessions` (
 -- 初始化数据
 -- ============================================
 
--- 插入测试用户（密码为123456的MD5，实际使用时应该使用BCrypt或其他安全加密方式）
+-- 插入测试用户（密码为123456的BCrypt加密）
 -- 测试账户: testuser / 123456
 INSERT INTO `users` (`id`, `username`, `nickname`, `password`, `status`, `create_time`, `update_time`) VALUES
 (1, 'testuser', '测试用户', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iwF8xQO.q', 'offline', UNIX_TIMESTAMP(NOW()) * 1000, UNIX_TIMESTAMP(NOW()) * 1000),

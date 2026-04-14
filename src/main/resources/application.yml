@@ -9,8 +9,12 @@ spring:
 
 # JWT配置
 jwt:
-  secret: chatroom-secret-key-2024-very-long-and-secure-key-for-jwt-token-generation
+  secret: ${JWT_SECRET:chatroom-secret-key-2024-very-long-and-secure-key-for-jwt-token-generation}
   expiration: 86400000
+
+# CORS配置
+cors:
+  allowed-origins: http://localhost:8080,http://localhost:5000
 
 mybatis:
   mapper-locations: classpath:mapper/*.xml

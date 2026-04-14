@@ -1,7 +1,7 @@
 package com.qianyu.chatroom.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.qianyu.chatroom.entry.ReturnBody;
+import com.qianyu.chatroom.entry.Result;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -45,7 +45,7 @@ public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
             errorMessage = "未授权，Authorization格式错误，正确格式为: Bearer <token>";
         }
         
-        ReturnBody errorResponse = ReturnBody.Error("401", errorMessage);
+        Result errorResponse = Result.Error("401", errorMessage);
         
         // 将响应转换为JSON并写入响应体
         ObjectMapper objectMapper = new ObjectMapper();

@@ -1,62 +1,125 @@
+import SockJS from 'sockjs-client'
+import { Client } from '@stomp/stompjs'
+
 /**
- * WebSocket连接管理工具
+ * WebSocket连接管理工具（使用STOMP协议）
  */
 class WebSocketManager {
   constructor() {
-    this.ws = null
+    this.stompClient = null
     this.url = null
+    this.token = null
     this.reconnectTimer = null
     this.reconnectCount = 0
     this.maxReconnectCount = 5
     this.reconnectInterval = 3000
     this.messageHandlers = new Map()
     this.isManualClose = false
+    this.subscriptions = new Map() // 存储订阅
   }
 
   /**
-   * 连接WebSocket
-   * @param {string} url WebSocket地址
+   * 连接WebSocket（使用STOMP协议）
+   * @param {string} url WebSocket地址（例如：ws://localhost:8080/ws 或 http://localhost:8080/ws）
    * @param {string} token 用户token
    */
   connect(url, token) {
-    this.url = url
+    this.token = token
     this.isManualClose = false
     
-    // 构建WebSocket URL，包含token
-    const wsUrl = `${url}?token=${token}`
+    // 根据当前页面的协议自动选择ws://或wss://
+    // 如果页面是HTTPS（如通过ngrok访问），则使用wss://；如果是HTTP，则使用ws://
+    let finalUrl = url
+    const isHttps = window.location.protocol === 'https:'
+    const currentHost = window.location.host
+    
+    // 检查是否通过ngrok访问（ngrok域名通常包含ngrok.io等）
+    const isNgrok = currentHost.includes('ngrok') || 
+                    currentHost.includes('ngrok-free.app') || 
+                    currentHost.includes('ngrok.app')
+    
+    // 如果URL是ws://或wss://开头，根据页面协议调整
+    if (url.startsWith('ws://') || url.startsWith('wss://')) {
+      if (isHttps && url.startsWith('ws://')) {
+        // HTTPS页面必须使用wss://
+        finalUrl = url.replace(/^ws:/, 'wss:')
+        
+        // 如果通过ngrok访问，且URL包含localhost，需要替换为当前host
+        if (isNgrok && finalUrl.includes('localhost')) {
+          // 将localhost替换为当前ngrok的host
+          finalUrl = finalUrl.replace(/localhost:\d+/, currentHost)
+        }
+      }
+    } else if (url.startsWith('http://') || url.startsWith('https://')) {
+      // 如果传入的是http://或https://，根据页面协议调整
+      if (isHttps && url.startsWith('http://')) {
+        finalUrl = url.replace(/^http:/, 'https:')
+        
+        // 如果通过ngrok访问，且URL包含localhost，需要替换为当前host
+        if (isNgrok && finalUrl.includes('localhost')) {
+          finalUrl = finalUrl.replace(/localhost:\d+/, currentHost)
+        }
+      }
+    }
+    
+    this.url = finalUrl
+    
+    // 将 ws:// 或 wss:// 转换为 http:// 或 https://（SockJS需要）
+    const httpUrl = finalUrl.replace(/^ws:/, 'http:').replace(/^wss:/, 'https:')
     
     try {
-      this.ws = new WebSocket(wsUrl)
+      // 创建SockJS连接
+      const socket = new SockJS(httpUrl)
       
-      this.ws.onopen = () => {
-        console.log('WebSocket连接成功')
-        this.reconnectCount = 0
-        this.onOpen()
-      }
-      
-      this.ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data)
-          this.handleMessage(data)
-        } catch (error) {
-          console.error('解析WebSocket消息失败:', error)
+      // 创建STOMP客户端
+      this.stompClient = new Client({
+        webSocketFactory: () => socket,
+        reconnectDelay: 5000,
+        heartbeatIncoming: 4000,
+        heartbeatOutgoing: 4000,
+        debug: () => {
+          // 可以在这里控制日志输出
+          // console.log('STOMP:', str)
+        },
+        onConnect: () => {
+          console.log('WebSocket连接成功 (STOMP)')
+          this.reconnectCount = 0
+          this.onOpen()
+        },
+        onStompError: (frame) => {
+          console.error('STOMP错误:', frame)
+          // 通知用户连接错误
+          if (this.onError) {
+            this.onError(frame)
+          }
+          // 提示用户认证错误
+          if (frame.headers && frame.headers.message) {
+            console.error('连接错误:', frame.headers.message)
+          }
+        },
+        onWebSocketClose: () => {
+          console.log('WebSocket连接关闭')
+          this.onClose()
+
+          // 如果不是手动关闭，则尝试重连
+          if (!this.isManualClose) {
+            this.reconnect()
+          }
+        },
+        onDisconnect: () => {
+          console.log('STOMP连接断开')
         }
-      }
+      })
       
-      this.ws.onerror = (error) => {
-        console.error('WebSocket错误:', error)
-        this.onError(error)
-      }
-      
-      this.ws.onclose = () => {
-        console.log('WebSocket连接关闭')
-        this.onClose()
-        
-        // 如果不是手动关闭，则尝试重连
-        if (!this.isManualClose) {
-          this.reconnect()
+      // 设置连接头（包含JWT token）
+      this.stompClient.configure({
+        connectHeaders: {
+          Authorization: `Bearer ${token}`
         }
-      }
+      })
+      
+      // 激活连接
+      this.stompClient.activate()
     } catch (error) {
       console.error('WebSocket连接失败:', error)
       this.reconnect()
@@ -69,16 +132,20 @@ class WebSocketManager {
   reconnect() {
     if (this.reconnectCount >= this.maxReconnectCount) {
       console.error('WebSocket重连次数已达上限')
+      // 通知用户连接失败
+      if (this.onError) {
+        this.onError({ message: '聊天连接失败，请刷新页面或重新登录' })
+      }
       return
     }
-    
+
     this.reconnectCount++
     console.log(`尝试重连WebSocket (${this.reconnectCount}/${this.maxReconnectCount})`)
-    
+
     this.reconnectTimer = setTimeout(() => {
       if (this.url && !this.isManualClose) {
         // 重新获取token（从store或localStorage）
-        const token = localStorage.getItem('token') || ''
+        const token = localStorage.getItem('token') || this.token || ''
         this.connect(this.url, token)
       }
     }, this.reconnectInterval)
@@ -93,21 +160,85 @@ class WebSocketManager {
       clearTimeout(this.reconnectTimer)
       this.reconnectTimer = null
     }
-    if (this.ws) {
-      this.ws.close()
-      this.ws = null
+    
+    // 取消所有订阅
+    this.subscriptions.forEach((subscription) => {
+      subscription.unsubscribe()
+    })
+    this.subscriptions.clear()
+    
+    // 断开STOMP连接
+    if (this.stompClient && this.stompClient.connected) {
+      this.stompClient.deactivate()
     }
+    this.stompClient = null
   }
 
   /**
    * 发送消息
-   * @param {Object} message 消息对象
+   * @param {Object} message 消息对象，格式：{ type: 'PRIVATE_MESSAGE' | 'GROUP_MESSAGE', data: {...} }
    */
   send(message) {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify(message))
+    if (this.stompClient && this.stompClient.connected) {
+      const { type, data } = message
+
+      if (type === 'PRIVATE_MESSAGE') {
+        // 发送私聊消息到 /app/chat/private
+        this.stompClient.publish({
+          destination: '/app/chat/private',
+          body: JSON.stringify(data)
+        })
+      } else if (type === 'GROUP_MESSAGE') {
+        // 发送群聊消息到 /app/chat/group
+        this.stompClient.publish({
+          destination: '/app/chat/group',
+          body: JSON.stringify(data)
+        })
+      } else {
+        console.warn('未知的消息类型:', type)
+      }
     } else {
-      console.error('WebSocket未连接')
+      console.error('WebSocket未连接，无法发送消息')
+      // 通知用户消息发送失败
+      if (this.onError) {
+        this.onError({ message: '消息发送失败，聊天连接已断开' })
+      }
+    }
+  }
+
+  /**
+   * 订阅消息
+   * @param {string} destination 订阅目标（例如：/topic/private/{userId} 或 /topic/group/{groupId}）
+   * @param {Function} callback 回调函数
+   */
+  subscribe(destination, callback) {
+    if (this.stompClient && this.stompClient.connected) {
+      const subscription = this.stompClient.subscribe(destination, (message) => {
+        try {
+          const data = JSON.parse(message.body)
+          callback(data)
+        } catch (error) {
+          console.error('解析消息失败:', error)
+        }
+      })
+      
+      this.subscriptions.set(destination, subscription)
+      return subscription
+    } else {
+      console.error('WebSocket未连接，无法订阅')
+      return null
+    }
+  }
+
+  /**
+   * 取消订阅
+   * @param {string} destination 订阅目标
+   */
+  unsubscribe(destination) {
+    const subscription = this.subscriptions.get(destination)
+    if (subscription) {
+      subscription.unsubscribe()
+      this.subscriptions.delete(destination)
     }
   }
 
@@ -146,31 +277,44 @@ class WebSocketManager {
 
   /**
    * 连接打开时的回调
+   * 在这里可以订阅消息主题
    */
   onOpen() {
-    // 可以在这里发送心跳包等
+    // 连接成功后，可以在这里订阅用户专属的主题
+    // 例如：订阅私聊消息 /user/{userId}/queue/private
+    // 订阅群聊消息 /topic/group/{groupId}
+    console.log('WebSocket连接已建立，可以开始订阅消息')
   }
 
   /**
    * 连接错误时的回调
    */
-  onError() {
-    // 错误处理
+  onError(error) {
+    console.error('WebSocket错误:', error)
   }
 
   /**
    * 连接关闭时的回调
    */
   onClose() {
-    // 关闭处理
+    // 清除所有订阅
+    this.subscriptions.clear()
   }
 
   /**
    * 获取连接状态
    */
   getState() {
-    if (!this.ws) return WebSocket.CLOSED
-    return this.ws.readyState
+    if (!this.stompClient) return 'CLOSED'
+    if (this.stompClient.connected) return 'OPEN'
+    return 'CONNECTING'
+  }
+
+  /**
+   * 检查是否已连接
+   */
+  isConnected() {
+    return this.stompClient && this.stompClient.connected
   }
 }
 

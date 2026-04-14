@@ -14,7 +14,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
@@ -31,6 +30,19 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     @Autowired
     private JwtUtil jwtUtil;
+
+    /**
+     * 判断是否应该过滤该请求
+     * WebSocket握手请求不应该被JWT过滤器处理
+     */
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        // WebSocket相关路径不进行JWT过滤
+        return path.startsWith("/ws") 
+                || path.startsWith("/ws-native")
+                || path.startsWith("/sockjs");
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, 

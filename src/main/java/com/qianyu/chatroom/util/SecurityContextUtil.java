@@ -56,21 +56,6 @@ public class SecurityContextUtil {
     }
 
     /**
-     * 获取当前登录用户的用户名
-     * 从JWT token的详细信息中获取
-     * @return 用户名，如果未登录则返回null
-     */
-    public static String getCurrentUsername() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.getDetails() != null) {
-            // 如果需要在token中存储更多信息，可以从这里获取
-            // 目前用户名信息在token的claims中，可以通过JwtUtil获取
-            return null;
-        }
-        return null;
-    }
-
-    /**
      * 检查当前用户是否已认证
      * @return 是否已认证
      */

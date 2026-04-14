@@ -35,8 +35,10 @@ public class SecurityConfig {
                         .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
                         // 放行登录和注册接口，无需认证
                         .requestMatchers("/api/user/login", "/api/user/register").permitAll()
-                        // WebSocket连接通常不需要JWT验证（如果需要可以单独配置）
-                        .requestMatchers("/ws/**").permitAll()
+                        // WebSocket连接端点放行（包括握手请求和SockJS相关请求）
+                        .requestMatchers("/ws/**", "/ws-native/**").permitAll()
+                        // SockJS相关的请求路径
+                        .requestMatchers("/sockjs/**").permitAll()
                         // 静态资源放行
                         .requestMatchers("/static/**", "/css/**", "/js/**", "/images/**").permitAll()
                         // 其它所有请求需要认证（包括logout）

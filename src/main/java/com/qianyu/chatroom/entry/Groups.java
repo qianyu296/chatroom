@@ -14,4 +14,10 @@ public class Groups {
     private Integer max_members;
     private Long createTime;
     private Long updateTime;
+    public void setMaxMembers(Integer max_members) {
+        this.max_members = max_members;
+    }
+    public Integer getMaxMembers(){
+        return max_members;
+    }
 }

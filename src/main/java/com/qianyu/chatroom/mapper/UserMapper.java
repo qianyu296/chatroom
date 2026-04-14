@@ -20,5 +20,7 @@ public interface UserMapper {
     Users findUserById(BigInteger id);
     @Update("update users set nickname = #{nickname}, avatar=#{avatar} where id = #{id}")
     boolean updateUserById(Users user);
+    @Select("select id, username, password, nickname, avatar, status from users where username = #{username}")
+    Users findUserByUsername(String username);
 
 }
