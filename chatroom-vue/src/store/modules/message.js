@@ -1,5 +1,9 @@
+import Vue from 'vue'
 import { getPrivateMessages, getGroupMessages } from '@/api/message'
 import wsManager from '@/utils/websocket'
+
+// 统一转换为字符串，避免类型不一致导致比较失败
+const toStr = (id) => String(id)
 
 const state = {
   // 私聊消息: { [friendId]: [...] }
@@ -13,40 +17,42 @@ const state = {
 const mutations = {
   // 添加私聊消息
   ADD_PRIVATE_MESSAGE(state, { friendId, message }) {
-    if (!state.privateMessages[friendId]) {
-      state.privateMessages[friendId] = []
+    const key = toStr(friendId)
+    if (!state.privateMessages[key]) {
+      Vue.set(state.privateMessages, key, [])
     }
-    state.privateMessages[friendId].push(message)
+    state.privateMessages[key].push(message)
   },
-  
+
   // 设置私聊消息列表
   SET_PRIVATE_MESSAGES(state, { friendId, messages }) {
-    state.privateMessages[friendId] = messages
+    Vue.set(state.privateMessages, toStr(friendId), messages)
   },
-  
+
   // 添加群聊消息
   ADD_GROUP_MESSAGE(state, { groupId, message }) {
-    if (!state.groupMessages[groupId]) {
-      state.groupMessages[groupId] = []
+    const key = toStr(groupId)
+    if (!state.groupMessages[key]) {
+      Vue.set(state.groupMessages, key, [])
     }
-    state.groupMessages[groupId].push(message)
+    state.groupMessages[key].push(message)
   },
-  
+
   // 设置群聊消息列表
   SET_GROUP_MESSAGES(state, { groupId, messages }) {
-    state.groupMessages[groupId] = messages
+    Vue.set(state.groupMessages, toStr(groupId), messages)
   },
-  
+
   // 更新未读消息数
   UPDATE_UNREAD_COUNT(state, { chatId, count }) {
-    state.unreadCounts[chatId] = count
+    state.unreadCounts[toStr(chatId)] = count
   },
-  
+
   // 清除未读消息数
   CLEAR_UNREAD_COUNT(state, chatId) {
-    state.unreadCounts[chatId] = 0
+    state.unreadCounts[toStr(chatId)] = 0
   },
-  
+
   // 清空所有消息
   CLEAR_ALL_MESSAGES(state) {
     state.privateMessages = {}
@@ -60,30 +66,32 @@ const actions = {
   async getPrivateMessages({ commit, rootState }, { friendId, page = 1, pageSize = 50 }) {
     const res = await getPrivateMessages(friendId, page, pageSize)
     if (res.data) {
+      const currentUserId = toStr(rootState.user?.userInfo?.id)
       // 标记消息是否为自己发送的
       const messages = res.data.map(msg => ({
         ...msg,
-        isOwn: msg.senderId === rootState.user?.userInfo?.id
+        isOwn: toStr(msg.senderId) === currentUserId
       }))
       commit('SET_PRIVATE_MESSAGES', { friendId, messages })
     }
     return res
   },
-  
+
   // 获取群聊消息历史
   async getGroupMessages({ commit, rootState }, { groupId, page = 1, pageSize = 50 }) {
     const res = await getGroupMessages(groupId, page, pageSize)
     if (res.data) {
+      const currentUserId = toStr(rootState.user?.userInfo?.id)
       // 标记消息是否为自己发送的
       const messages = res.data.map(msg => ({
         ...msg,
-        isOwn: msg.senderId === rootState.user?.userInfo?.id
+        isOwn: toStr(msg.senderId) === currentUserId
       }))
       commit('SET_GROUP_MESSAGES', { groupId, messages })
     }
     return res
   },
-  
+
   // 发送私聊消息
   sendPrivateMessage({ commit, rootState }, { friendId, content }) {
     const message = {
@@ -95,7 +103,7 @@ const actions = {
       }
     }
     wsManager.send(message)
-    
+
     // 立即添加到本地消息列表（优化用户体验）
     const localMessage = {
       id: `temp_${Date.now()}`,
@@ -107,7 +115,7 @@ const actions = {
     }
     commit('ADD_PRIVATE_MESSAGE', { friendId, message: localMessage })
   },
-  
+
   // 发送群聊消息
   sendGroupMessage({ commit, rootState }, { groupId, content }) {
     const message = {
@@ -119,7 +127,7 @@ const actions = {
       }
     }
     wsManager.send(message)
-    
+
     // 立即添加到本地消息列表（优化用户体验）
     const localMessage = {
       id: `temp_${Date.now()}`,
@@ -132,53 +140,55 @@ const actions = {
     }
     commit('ADD_GROUP_MESSAGE', { groupId, message: localMessage })
   },
-  
+
   // 接收WebSocket消息
   receiveMessage({ commit, rootState, state }, data) {
     const { type, data: messageData } = data
-    
+    const currentUserId = toStr(rootState.user?.userInfo?.id)
+
     if (type === 'PRIVATE_MESSAGE') {
-      const friendId = messageData.senderId === rootState.user.userInfo.id 
-        ? messageData.receiverId 
-        : messageData.senderId
-      
+      const senderId = toStr(messageData.senderId)
+      const receiverId = toStr(messageData.receiverId)
+
+      // 跳过自己发送的消息回传（发送时已本地添加）
+      if (senderId === currentUserId) return
+
+      const friendId = senderId
       const message = {
         ...messageData,
-        isOwn: messageData.senderId === rootState.user.userInfo.id
+        senderId,
+        receiverId,
+        isOwn: false
       }
-      
-      commit('ADD_PRIVATE_MESSAGE', {
-        friendId,
-        message
+
+      commit('ADD_PRIVATE_MESSAGE', { friendId, message })
+
+      const currentCount = state.unreadCounts[friendId] || 0
+      commit('UPDATE_UNREAD_COUNT', {
+        chatId: friendId,
+        count: currentCount + 1
       })
-      
-      // 如果不是自己发送的消息，更新未读消息数
-      if (!message.isOwn) {
-        const currentCount = state.unreadCounts[friendId] || 0
-        commit('UPDATE_UNREAD_COUNT', {
-          chatId: friendId,
-          count: currentCount + 1
-        })
-      }
     } else if (type === 'GROUP_MESSAGE') {
+      const senderId = toStr(messageData.senderId)
+      const groupId = toStr(messageData.groupId)
+
+      // 跳过自己发送的消息回传
+      if (senderId === currentUserId) return
+
       const message = {
         ...messageData,
-        isOwn: messageData.senderId === rootState.user.userInfo.id
+        senderId,
+        groupId,
+        isOwn: false
       }
-      
-      commit('ADD_GROUP_MESSAGE', {
-        groupId: messageData.groupId,
-        message
+
+      commit('ADD_GROUP_MESSAGE', { groupId, message })
+
+      const currentCount = state.unreadCounts[groupId] || 0
+      commit('UPDATE_UNREAD_COUNT', {
+        chatId: groupId,
+        count: currentCount + 1
       })
-      
-      // 如果不是自己发送的消息，更新未读消息数
-      if (!message.isOwn) {
-        const currentCount = state.unreadCounts[messageData.groupId] || 0
-        commit('UPDATE_UNREAD_COUNT', {
-          chatId: messageData.groupId,
-          count: currentCount + 1
-        })
-      }
     }
   }
 }

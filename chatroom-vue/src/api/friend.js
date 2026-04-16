@@ -75,7 +75,7 @@ export function moveFriendToGroup(data) {
 // 获取好友申请列表
 export function getFriendRequests() {
   return request({
-    url: '/friend/requests',
+    url: '/friend/request/received',
     method: 'get'
   })
 }
@@ -83,9 +83,8 @@ export function getFriendRequests() {
 // 处理好友申请
 export function handleFriendRequest(requestId, action) {
   return request({
-    url: `/friend/request/${requestId}`,
-    method: 'put',
-    data: { action } // accept or reject
+    url: `/friend/request/${requestId}/${action}`,
+    method: 'put'
   })
 }
 

@@ -11,11 +11,12 @@ class WebSocketManager {
     this.token = null
     this.reconnectTimer = null
     this.reconnectCount = 0
-    this.maxReconnectCount = 5
-    this.reconnectInterval = 3000
+    this.maxReconnectCount = 10
+    this.reconnectInterval = 5000
     this.messageHandlers = new Map()
     this.isManualClose = false
     this.subscriptions = new Map() // 存储订阅
+    this.openListeners = [] // 连接成功回调列表
   }
 
   /**
@@ -24,6 +25,11 @@ class WebSocketManager {
    * @param {string} token 用户token
    */
   connect(url, token) {
+    // 如果已经有连接，先关闭
+    if (this.stompClient) {
+      this.close()
+    }
+
     this.token = token
     this.isManualClose = false
     
@@ -82,7 +88,6 @@ class WebSocketManager {
           // console.log('STOMP:', str)
         },
         onConnect: () => {
-          console.log('WebSocket连接成功 (STOMP)')
           this.reconnectCount = 0
           this.onOpen()
         },
@@ -98,16 +103,16 @@ class WebSocketManager {
           }
         },
         onWebSocketClose: () => {
-          console.log('WebSocket连接关闭')
           this.onClose()
 
-          // 如果不是手动关闭，则尝试重连
-          if (!this.isManualClose) {
-            this.reconnect()
+          // STOMP客户端会通过reconnectDelay自动重连，这里不需要手动处理
+          // 但如果isManualClose为true（用户主动关闭），则不重连
+          if (this.isManualClose) {
+            // 用户主动关闭，不自动重连
           }
         },
         onDisconnect: () => {
-          console.log('STOMP连接断开')
+          // 连接断开
         }
       })
       
@@ -117,12 +122,12 @@ class WebSocketManager {
           Authorization: `Bearer ${token}`
         }
       })
-      
+
       // 激活连接
       this.stompClient.activate()
     } catch (error) {
       console.error('WebSocket连接失败:', error)
-      this.reconnect()
+      this.onError && this.onError({ message: 'WebSocket连接失败，请刷新页面' })
     }
   }
 
@@ -140,7 +145,6 @@ class WebSocketManager {
     }
 
     this.reconnectCount++
-    console.log(`尝试重连WebSocket (${this.reconnectCount}/${this.maxReconnectCount})`)
 
     this.reconnectTimer = setTimeout(() => {
       if (this.url && !this.isManualClose) {
@@ -218,14 +222,13 @@ class WebSocketManager {
           const data = JSON.parse(message.body)
           callback(data)
         } catch (error) {
-          console.error('解析消息失败:', error)
+          // 忽略解析错误
         }
       })
-      
+
       this.subscriptions.set(destination, subscription)
       return subscription
     } else {
-      console.error('WebSocket未连接，无法订阅')
       return null
     }
   }
@@ -266,24 +269,31 @@ class WebSocketManager {
   handleMessage(data) {
     const { type } = data
     const handler = this.messageHandlers.get(type)
-    
+
     if (handler) {
       handler(data)
-    } else {
-      // 默认处理器
-      console.log('收到WebSocket消息:', data)
     }
   }
 
   /**
+   * 注册连接成功回调（支持多个监听器）
+   */
+  addOpenListener(listener) {
+    this.openListeners.push(listener)
+  }
+
+  /**
+   * 移除连接成功回调
+   */
+  removeOpenListener(listener) {
+    this.openListeners = this.openListeners.filter(l => l !== listener)
+  }
+
+  /**
    * 连接打开时的回调
-   * 在这里可以订阅消息主题
    */
   onOpen() {
-    // 连接成功后，可以在这里订阅用户专属的主题
-    // 例如：订阅私聊消息 /user/{userId}/queue/private
-    // 订阅群聊消息 /topic/group/{groupId}
-    console.log('WebSocket连接已建立，可以开始订阅消息')
+    this.openListeners.forEach(listener => listener())
   }
 
   /**
@@ -297,7 +307,7 @@ class WebSocketManager {
    * 连接关闭时的回调
    */
   onClose() {
-    // 清除所有订阅
+    // 清除所有订阅（STOMP subscription 对象已失效）
     this.subscriptions.clear()
   }
 

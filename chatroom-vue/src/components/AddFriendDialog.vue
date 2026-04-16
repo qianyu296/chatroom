@@ -109,8 +109,65 @@ export default {
 </script>
 
 <style scoped>
+/* Clean Minimal White Dialog */
 .dialog-footer {
   text-align: right;
+}
+
+.dialog-footer >>> .el-button {
+  border-radius: 8px;
+  padding: 10px 20px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.dialog-footer >>> .el-button--default {
+  border-color: #e2e8f0;
+  color: #64748b;
+}
+
+.dialog-footer >>> .el-button--default:hover {
+  border-color: #0ea5e9;
+  color: #0ea5e9;
+  background: #f0f9ff;
+}
+
+.dialog-footer >>> .el-button--primary {
+  background: #0ea5e9;
+  border-color: #0ea5e9;
+}
+
+.dialog-footer >>> .el-button--primary:hover {
+  background: #0284c7;
+  border-color: #0284c7;
+}
+
+/* Form styling */
+>>> .el-form-item__label {
+  color: #1e293b;
+  font-weight: 500;
+}
+
+>>> .el-input__inner {
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  transition: all 0.2s;
+}
+
+>>> .el-input__inner:focus {
+  border-color: #0ea5e9;
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
+}
+
+>>> .el-textarea__inner {
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  transition: all 0.2s;
+}
+
+>>> .el-textarea__inner:focus {
+  border-color: #0ea5e9;
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
 }
 </style>
 

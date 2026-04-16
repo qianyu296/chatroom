@@ -33,6 +33,24 @@
           size="small"
         />
       </div>
+
+      <!-- 好友申请按钮 -->
+      <div class="request-button">
+        <el-button
+          type="primary"
+          plain
+          size="small"
+          @click="showFriendRequestList = true"
+        >
+          好友申请
+          <el-badge
+            v-if="receivedRequests.length > 0"
+            :value="receivedRequests.length"
+            :max="99"
+            class="badge"
+          />
+        </el-button>
+      </div>
       
       <!-- 标签页：好友/群组 -->
       <el-tabs v-model="activeTab" class="chat-tabs">
@@ -82,6 +100,12 @@
       @close="showCreateGroupDialog = false"
       @success="handleGroupCreated"
     />
+
+    <!-- 好友申请列表对话框 -->
+    <FriendRequestList
+      :visible.sync="showFriendRequestList"
+      @request-accepted="handleFriendAdded"
+    />
   </div>
 </template>
 
@@ -93,6 +117,7 @@ import GroupList from '@/components/GroupList.vue'
 import ChatWindow from '@/components/ChatWindow.vue'
 import AddFriendDialog from '@/components/AddFriendDialog.vue'
 import CreateGroupDialog from '@/components/CreateGroupDialog.vue'
+import FriendRequestList from '@/components/FriendRequestList.vue'
 import wsManager from '@/utils/websocket'
 
 export default {
@@ -102,7 +127,8 @@ export default {
     GroupList,
     ChatWindow,
     AddFriendDialog,
-    CreateGroupDialog
+    CreateGroupDialog,
+    FriendRequestList
   },
   data() {
     return {
@@ -110,26 +136,29 @@ export default {
       searchKeyword: '',
       currentChat: null, // { type: 'friend' | 'group', id, name, avatar }
       showAddFriendDialog: false,
-      showCreateGroupDialog: false
+      showCreateGroupDialog: false,
+      showFriendRequestList: false,
+      wsOpenListener: null
     }
   },
   computed: {
     ...mapState('user', ['userInfo']),
-    ...mapState('friend', ['friendList']),
+    ...mapState('friend', ['friendList', 'receivedRequests']),
     ...mapState('group', ['groupList']),
     ...mapState('message', ['privateMessages', 'groupMessages']),
     
     userAvatar() {
       return this.userInfo?.avatar || ''
     },
-    
+
     currentMessages() {
       if (!this.currentChat) return []
-      
+
       if (this.currentChat.type === 'friend') {
-        return this.privateMessages[this.currentChat.id] || []
+        const key = String(this.currentChat.id)
+        return this.privateMessages[key] || []
       } else {
-        return this.groupMessages[this.currentChat.id] || []
+        return this.groupMessages[String(this.currentChat.id)] || []
       }
     }
   },
@@ -139,17 +168,36 @@ export default {
       this.$router.push('/login')
       return
     }
-    
-    // 初始化数据
-    await this.initData()
-    
+
     // 注册WebSocket消息处理器
     this.setupWebSocket()
+
+    // 初始化数据
+    await this.initData()
+
+    // 设置WebSocket连接成功后的回调
+    this.wsOpenListener = () => {
+      this.subscribeMessages()
+    }
+    wsManager.addOpenListener(this.wsOpenListener)
+
+    // 如果WebSocket已经连接，立即订阅
+    if (wsManager.isConnected()) {
+      this.subscribeMessages()
+    }
   },
   beforeDestroy() {
     // 移除WebSocket消息处理器
     wsManager.offMessage('PRIVATE_MESSAGE')
     wsManager.offMessage('GROUP_MESSAGE')
+    wsManager.offMessage('FRIEND_REQUEST')
+    wsManager.offMessage('FRIEND_REQUEST_ACCEPTED')
+    wsManager.offMessage('FRIEND_REQUEST_REJECTED')
+    wsManager.offMessage('PRESENCE_CHANGE')
+    if (this.wsOpenListener) {
+      wsManager.removeOpenListener(this.wsOpenListener)
+      this.wsOpenListener = null
+    }
   },
   methods: {
     async initData() {
@@ -158,6 +206,8 @@ export default {
         await this.$store.dispatch('friend/getFriendList')
         // 获取群组列表
         await this.$store.dispatch('group/getGroupList')
+        // 获取收到的好友申请
+        await this.$store.dispatch('friend/getReceivedRequests')
       } catch (error) {
         // 如果后端不可用，使用模拟数据
         if (error.message && error.message.includes('Network Error')) {
@@ -212,30 +262,101 @@ export default {
       wsManager.onMessage('PRIVATE_MESSAGE', (data) => {
         this.$store.dispatch('message/receiveMessage', data)
       })
-      
+
       // 注册群聊消息处理器
       wsManager.onMessage('GROUP_MESSAGE', (data) => {
         this.$store.dispatch('message/receiveMessage', data)
       })
+
+      // 注册好友申请消息处理器
+      wsManager.onMessage('FRIEND_REQUEST', () => {
+        Message.success('收到新的好友申请')
+        // 可以触发刷新好友申请列表
+        this.$store.dispatch('friend/getReceivedRequests')
+      })
+
+      wsManager.onMessage('FRIEND_REQUEST_ACCEPTED', () => {
+        Message.success('您的好友申请已被接受')
+        // 刷新好友列表
+        this.$store.dispatch('friend/getFriendList')
+      })
+
+      wsManager.onMessage('FRIEND_REQUEST_REJECTED', () => {
+        Message.warning('您的好友申请被拒绝了')
+      })
+
+      // 注册好友状态变化处理器
+      wsManager.onMessage('PRESENCE_CHANGE', (data) => {
+        const { userId, status } = data
+        const newStatus = status === '在线' ? '在线' : '离线'
+        // 更新好友列表中对应好友的状态
+        this.$store.commit('friend/UPDATE_FRIEND_STATUS', {
+          friendId: userId,
+          status: newStatus
+        })
+      })
+    },
+
+    subscribeMessages() {
+      const userId = this.$store.state.user.userInfo?.id
+      if (!userId) {
+        return
+      }
+
+      // 取消之前的订阅（避免重复订阅）
+      wsManager.unsubscribe('/user/queue/private')
+      wsManager.unsubscribe('/user/queue/friendRequest')
+      wsManager.unsubscribe('/user/queue/presence')
+
+      // 订阅私聊消息
+      wsManager.subscribe('/user/queue/private', (data) => {
+        wsManager.handleMessage(data)
+      })
+      // 订阅好友申请队列
+      wsManager.subscribe('/user/queue/friendRequest', (data) => {
+        wsManager.handleMessage(data)
+      })
+      // 订阅好友状态变化
+      wsManager.subscribe('/user/queue/presence', (data) => {
+        wsManager.handleMessage(data)
+        // 更新好友状态
+        if (data.type === 'PRESENCE_CHANGE') {
+          this.$store.commit('friend/UPDATE_FRIEND_STATUS', {
+            friendId: data.userId,
+            status: data.status === '在线' ? '在线' : '离线'
+          })
+        }
+      })
     },
     
     handleSelectFriend(friend) {
+      // 取消之前订阅的群聊消息
+      if (this.currentChat?.type === 'group' && this.currentChat?.id) {
+        wsManager.unsubscribe(`/topic/group/${String(this.currentChat.id)}`)
+      }
+
       this.currentChat = {
         type: 'friend',
         id: friend.id,
         name: friend.nickname,
-        avatar: friend.avatar
+        avatar: friend.avatar,
+        status: friend.status || '离线'
       }
       this.$store.commit('friend/SET_CURRENT_CHAT_FRIEND', friend)
-      
+
       // 加载消息历史
       this.loadMessages()
-      
+
       // 清除未读消息数
       this.$store.commit('message/CLEAR_UNREAD_COUNT', friend.id)
     },
-    
+
     handleSelectGroup(group) {
+      // 取消之前订阅的群聊消息
+      if (this.currentChat?.type === 'group' && this.currentChat?.id) {
+        wsManager.unsubscribe(`/topic/group/${String(this.currentChat.id)}`)
+      }
+
       this.currentChat = {
         type: 'group',
         id: group.id,
@@ -243,10 +364,15 @@ export default {
         avatar: group.avatar
       }
       this.$store.commit('group/SET_CURRENT_CHAT_GROUP', group)
-      
+
+      // 订阅该群聊的消息
+      wsManager.subscribe(`/topic/group/${String(group.id)}`, (data) => {
+        wsManager.handleMessage(data)
+      })
+
       // 加载消息历史
       this.loadMessages()
-      
+
       // 清除未读消息数
       this.$store.commit('message/CLEAR_UNREAD_COUNT', group.id)
     },
@@ -318,45 +444,33 @@ export default {
 </script>
 
 <style scoped>
+/* Clean Minimal White Theme */
 .chat-container {
   display: flex;
   height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #f8fafc;
   position: relative;
   overflow: hidden;
 }
 
-.chat-container::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: 
-    radial-gradient(circle at 20% 50%, rgba(120, 119, 198, 0.3) 0%, transparent 50%),
-    radial-gradient(circle at 80% 80%, rgba(102, 126, 234, 0.3) 0%, transparent 50%);
-  pointer-events: none;
-}
-
+/* Left Sidebar */
 .chat-sidebar {
-  width: 320px;
-  background: rgba(255, 255, 255, 0.98);
-  backdrop-filter: blur(10px);
-  box-shadow: 2px 0 20px rgba(0, 0, 0, 0.1);
+  width: 300px;
+  background: #ffffff;
+  border-right: 1px solid #e2e8f0;
   display: flex;
   flex-direction: column;
   position: relative;
   z-index: 1;
 }
 
+/* User Info Header */
 .user-info {
   display: flex;
   align-items: center;
-  padding: 20px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  padding: 20px 16px;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
 }
 
 .user-avatar {
@@ -364,32 +478,31 @@ export default {
   position: relative;
 }
 
-.user-avatar::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  right: 0;
-  width: 12px;
-  height: 12px;
-  background: #67c23a;
-  border: 2px solid white;
-  border-radius: 50%;
+.user-avatar .el-avatar {
+  background: #0ea5e9;
+  color: #fff;
+  font-weight: 600;
+  font-size: 16px;
 }
 
 .user-details {
   flex: 1;
+  min-width: 0;
 }
 
 .user-name {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
-  color: white;
-  margin-bottom: 4px;
+  color: #1e293b;
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .user-status {
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.8);
+  color: #64748b;
   display: flex;
   align-items: center;
 }
@@ -398,56 +511,99 @@ export default {
   content: '';
   width: 6px;
   height: 6px;
-  background: #67c23a;
+  background: #22c55e;
   border-radius: 50%;
   margin-right: 6px;
 }
 
 .el-dropdown-link {
   cursor: pointer;
-  font-size: 20px;
-  color: rgba(255, 255, 255, 0.9);
-  padding: 8px;
-  border-radius: 50%;
-  transition: all 0.3s;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: #64748b;
+  transition: all 0.2s;
 }
 
 .el-dropdown-link:hover {
-  background: rgba(255, 255, 255, 0.2);
-  transform: rotate(90deg);
+  background: #f1f5f9;
+  color: #1e293b;
 }
 
+/* Search Box */
 .search-box {
-  padding: 15px;
-  background: white;
-  border-bottom: 1px solid #f0f0f0;
+  padding: 12px 16px;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
 }
 
 .search-box >>> .el-input__inner {
-  border-radius: 20px;
-  border: 1px solid #e4e7ed;
-  padding-left: 35px;
-  transition: all 0.3s;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  padding-left: 12px;
+  font-size: 14px;
+  background: #f8fafc;
+  transition: all 0.2s;
 }
 
 .search-box >>> .el-input__inner:focus {
-  border-color: #667eea;
-  box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+  border-color: #0ea5e9;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
 }
 
+.search-box >>> .el-input__prefix {
+  color: #94a3b8;
+}
+
+/* Request Button */
+.request-button {
+  padding: 12px 16px;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.request-button >>> .el-button {
+  width: 100%;
+  border-radius: 10px;
+  border-color: #e2e8f0;
+  color: #64748b;
+  background: #f8fafc;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.request-button >>> .el-button:hover {
+  border-color: #0ea5e9;
+  color: #0ea5e9;
+  background: #f0f9ff;
+}
+
+.request-button >>> .badge {
+  margin-left: 8px;
+}
+
+.request-button >>> .el-badge__content {
+  background: #ef4444;
+}
+
+/* Tabs */
 .chat-tabs {
   flex: 1;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  background: white;
+  background: #ffffff;
 }
 
 .chat-tabs >>> .el-tabs__header {
   margin: 0;
-  padding: 0 15px;
-  background: white;
-  border-bottom: 1px solid #f0f0f0;
+  padding: 0 16px;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
 }
 
 .chat-tabs >>> .el-tabs__nav-wrap::after {
@@ -456,18 +612,20 @@ export default {
 
 .chat-tabs >>> .el-tabs__item {
   font-weight: 500;
-  color: #909399;
-  transition: all 0.3s;
+  color: #94a3b8;
+  font-size: 14px;
+  transition: all 0.2s;
 }
 
 .chat-tabs >>> .el-tabs__item.is-active {
-  color: #667eea;
+  color: #0ea5e9;
   font-weight: 600;
 }
 
 .chat-tabs >>> .el-tabs__active-bar {
-  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-  height: 3px;
+  background: #0ea5e9;
+  height: 2px;
+  border-radius: 2px;
 }
 
 .chat-tabs >>> .el-tabs__content {
@@ -480,42 +638,38 @@ export default {
   overflow: hidden;
 }
 
+/* Main Chat Area */
 .chat-main {
   flex: 1;
   display: flex;
   flex-direction: column;
-  margin: 20px;
-  margin-left: 0;
+  padding: 16px;
   position: relative;
   z-index: 1;
 }
 
+/* Empty State */
 .empty-chat {
   flex: 1;
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  border-radius: 20px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
-  color: #909399;
+  background: #ffffff;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  color: #94a3b8;
 }
 
 .empty-chat i {
-  font-size: 80px;
-  margin-bottom: 20px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  opacity: 0.6;
+  font-size: 64px;
+  margin-bottom: 16px;
+  color: #cbd5e1;
 }
 
 .empty-chat p {
-  font-size: 18px;
-  color: #909399;
+  font-size: 15px;
+  color: #64748b;
   font-weight: 500;
 }
 </style>

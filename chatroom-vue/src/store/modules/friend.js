@@ -1,9 +1,10 @@
-import { getFriendList, getFriendGroups, addFriend, deleteFriend } from '@/api/friend'
+import { getFriendList, getFriendGroups, addFriend, deleteFriend, getFriendRequests } from '@/api/friend'
 
 const state = {
   friendList: [],
   friendGroups: [],
-  currentChatFriend: null
+  currentChatFriend: null,
+  receivedRequests: []
 }
 
 const mutations = {
@@ -21,6 +22,15 @@ const mutations = {
   },
   SET_CURRENT_CHAT_FRIEND(state, friend) {
     state.currentChatFriend = friend
+  },
+  SET_RECEIVED_REQUESTS(state, requests) {
+    state.receivedRequests = requests
+  },
+  UPDATE_FRIEND_STATUS(state, { friendId, status }) {
+    const friend = state.friendList.find(f => String(f.id) === String(friendId))
+    if (friend) {
+      friend.status = status
+    }
   }
 }
 
@@ -56,6 +66,15 @@ const actions = {
   async deleteFriend({ commit }, friendId) {
     await deleteFriend(friendId)
     commit('REMOVE_FRIEND', friendId)
+  },
+
+  // 获取收到的好友申请
+  async getReceivedRequests({ commit }) {
+    const res = await getFriendRequests()
+    if (res.data) {
+      commit('SET_RECEIVED_REQUESTS', res.data)
+    }
+    return res
   }
 }
 

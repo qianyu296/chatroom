@@ -3,7 +3,6 @@ package com.qianyu.chatroom.controller;
 import com.qianyu.chatroom.entry.GroupMessage;
 import com.qianyu.chatroom.entry.PrivateMessage;
 import com.qianyu.chatroom.service.MessageService;
-import com.qianyu.chatroom.util.SecurityContextUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,6 +12,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 
 import java.math.BigInteger;
+import java.security.Principal;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -37,14 +37,15 @@ public class WebSocketController {
      * 服务端转发到: /user/{receiverId}/queue/private
      */
     @MessageMapping("/chat/private")
-    public Map<String, Object> handlePrivateMessage(@Payload Map<String, Object> messageData) {
+    public Map<String, Object> handlePrivateMessage(@Payload Map<String, Object> messageData,
+                                                    Principal principal) {
         try {
-            // 获取当前登录用户ID
-            BigInteger senderId = SecurityContextUtil.getCurrentUserId();
-            if (senderId == null) {
+            // 从Principal获取当前登录用户ID
+            if (principal == null) {
                 logger.warn("未找到发送者ID，消息发送失败");
                 return createErrorResponse("未授权");
             }
+            BigInteger senderId = new BigInteger(principal.getName());
 
             // 从消息中获取接收者ID和内容
             Object receiverIdObj = messageData.get("receiverId");
@@ -67,17 +68,21 @@ public class WebSocketController {
                 senderId, receiverId, content, "text", timestamp
             );
 
-            // 构建响应消息
-            Map<String, Object> response = new HashMap<>();
-            response.put("id", savedMessage.getId());
-            response.put("senderId", senderId);
-            response.put("receiverId", receiverId);
-            response.put("content", content);
-            response.put("timestamp", timestamp);
-            response.put("type", "PRIVATE_MESSAGE");
+            // 构建消息数据
+            Map<String, Object> messagePayload = new HashMap<>();
+            messagePayload.put("id", savedMessage.getId());
+            messagePayload.put("senderId", senderId);
+            messagePayload.put("receiverId", receiverId);
+            messagePayload.put("content", content);
+            messagePayload.put("timestamp", timestamp);
 
-            // 发送给接收者（使用用户目标前缀）
-            // 格式：/user/{receiverId}/queue/private
+            // 构建响应消息（嵌套结构，前端期望 { type, data: {...} }）
+            Map<String, Object> response = new HashMap<>();
+            response.put("type", "PRIVATE_MESSAGE");
+            response.put("data", messagePayload);
+
+            // 发送给接收者
+            logger.info("发送私聊消息给用户: {}", receiverId);
             messagingTemplate.convertAndSendToUser(
                 receiverId.toString(),
                 "/queue/private",
@@ -85,6 +90,7 @@ public class WebSocketController {
             );
 
             // 同时发送给发送者（确认消息已发送）
+            logger.info("发送私聊消息给发送者: {}", senderId);
             messagingTemplate.convertAndSendToUser(
                 senderId.toString(),
                 "/queue/private",
@@ -104,14 +110,15 @@ public class WebSocketController {
      * 服务端广播到: /topic/group/{groupId}
      */
     @MessageMapping("/chat/group")
-    public Map<String, Object> handleGroupMessage(@Payload Map<String, Object> messageData) {
+    public Map<String, Object> handleGroupMessage(@Payload Map<String, Object> messageData,
+                                                  Principal principal) {
         try {
-            // 获取当前登录用户ID
-            BigInteger senderId = SecurityContextUtil.getCurrentUserId();
-            if (senderId == null) {
+            // 从Principal获取当前登录用户ID
+            if (principal == null) {
                 logger.warn("未找到发送者ID，消息发送失败");
                 return createErrorResponse("未授权");
             }
+            BigInteger senderId = new BigInteger(principal.getName());
 
             // 从消息中获取群组ID和内容
             Object groupIdObj = messageData.get("groupId");
@@ -134,17 +141,20 @@ public class WebSocketController {
                 groupId, senderId, content, "text", timestamp
             );
 
-            // 构建响应消息
+            // 构建消息数据
+            Map<String, Object> messagePayload = new HashMap<>();
+            messagePayload.put("id", savedMessage.getId());
+            messagePayload.put("groupId", groupId);
+            messagePayload.put("senderId", senderId);
+            messagePayload.put("content", content);
+            messagePayload.put("timestamp", timestamp);
+
+            // 构建响应消息（嵌套结构，前端期望 { type, data: {...} }）
             Map<String, Object> response = new HashMap<>();
-            response.put("id", savedMessage.getId());
-            response.put("groupId", groupId);
-            response.put("senderId", senderId);
-            response.put("content", content);
-            response.put("timestamp", timestamp);
             response.put("type", "GROUP_MESSAGE");
+            response.put("data", messagePayload);
 
             // 广播到群组主题
-            // 格式：/topic/group/{groupId}
             messagingTemplate.convertAndSend("/topic/group/" + groupId, response);
 
             return response;

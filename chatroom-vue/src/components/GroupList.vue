@@ -69,42 +69,47 @@ export default {
 </script>
 
 <style scoped>
+/* Clean Minimal White Group List */
 .group-list {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: white;
+  background: #ffffff;
 }
 
 .group-list-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 15px 20px;
-  background: white;
-  font-size: 15px;
+  padding: 14px 16px;
+  background: #ffffff;
+  font-size: 14px;
   font-weight: 600;
-  color: #303133;
+  color: #1e293b;
 }
 
 .group-list-header >>> .el-button {
-  color: #667eea;
+  color: #64748b;
   font-weight: 500;
-  padding: 5px 10px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  transition: all 0.2s;
 }
 
 .group-list-header >>> .el-button:hover {
-  background: rgba(102, 126, 234, 0.1);
+  background: #f1f5f9;
+  color: #0ea5e9;
 }
 
 .group-list-content {
   flex: 1;
   overflow-y: auto;
-  padding: 5px 0;
+  padding: 4px 0;
 }
 
 .group-list-content::-webkit-scrollbar {
-  width: 6px;
+  width: 4px;
 }
 
 .group-list-content::-webkit-scrollbar-track {
@@ -112,66 +117,39 @@ export default {
 }
 
 .group-list-content::-webkit-scrollbar-thumb {
-  background: #e4e7ed;
-  border-radius: 3px;
+  background: #e2e8f0;
+  border-radius: 2px;
 }
 
 .group-list-content::-webkit-scrollbar-thumb:hover {
-  background: #c1c1c1;
+  background: #cbd5e1;
 }
 
 .group-item {
   display: flex;
   align-items: center;
-  padding: 12px 20px;
-  margin: 2px 10px;
+  padding: 10px 16px;
+  margin: 2px 8px;
   cursor: pointer;
-  border-radius: 12px;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 10px;
+  transition: all 0.2s;
   position: relative;
 }
 
-.group-item::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 3px;
-  height: 0;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 0 3px 3px 0;
-  transition: height 0.3s;
-}
-
 .group-item:hover {
-  background: linear-gradient(90deg, rgba(102, 126, 234, 0.08) 0%, rgba(102, 126, 234, 0.03) 100%);
-  transform: translateX(3px);
-}
-
-.group-item:hover::before {
-  height: 60%;
+  background: #f8fafc;
 }
 
 .group-item.active {
-  background: linear-gradient(90deg, rgba(102, 126, 234, 0.15) 0%, rgba(102, 126, 234, 0.05) 100%);
-  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.15);
-}
-
-.group-item.active::before {
-  height: 70%;
+  background: #f0f9ff;
 }
 
 .group-item >>> .el-avatar {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  border: 2px solid white;
-  transition: all 0.3s;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-}
-
-.group-item:hover >>> .el-avatar {
-  transform: scale(1.05);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+  background: #64748b;
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 14px;
+  transition: all 0.2s;
 }
 
 .group-info {
@@ -182,57 +160,45 @@ export default {
 }
 
 .group-name {
-  font-size: 15px;
-  color: #303133;
-  margin-bottom: 6px;
+  font-size: 14px;
+  color: #1e293b;
   font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  margin-bottom: 2px;
 }
 
 .group-desc {
   font-size: 12px;
-  color: #909399;
+  color: #94a3b8;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .group-item.active .group-name {
-  color: #667eea;
-  font-weight: 600;
+  color: #0ea5e9;
 }
 
 .unread-badge {
-  min-width: 22px;
-  height: 22px;
-  padding: 0 7px;
-  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  background: #ef4444;
   color: white;
-  border-radius: 11px;
+  border-radius: 10px;
   font-size: 11px;
   font-weight: 600;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 6px rgba(255, 107, 107, 0.4);
-  animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-  0%, 100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.05);
-  }
 }
 
 .empty-list {
   padding: 60px 20px;
   text-align: center;
-  color: #909399;
+  color: #94a3b8;
 }
 
 .empty-list p {

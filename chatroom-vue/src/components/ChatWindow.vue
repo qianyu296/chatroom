@@ -9,7 +9,8 @@
         <div class="chat-details">
           <div class="chat-name">{{ chatInfo.name }}</div>
           <div class="chat-status">
-            {{ chatInfo.type === 'friend' ? '在线' : `${chatInfo.memberCount || 0} 成员` }}
+            <span v-if="chatInfo.type === 'friend'" :class="['status-dot', { online: chatInfo.status === '在线' }]"></span>
+            {{ chatInfo.type === 'friend' ? (chatInfo.status || '离线') : `${chatInfo.memberCount || 0} 成员` }}
           </div>
         </div>
       </div>
@@ -155,25 +156,25 @@ export default {
 </script>
 
 <style scoped>
+/* Clean Minimal White Chat Window */
 .chat-window {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  border-radius: 20px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+  background: #ffffff;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
   overflow: hidden;
 }
 
+/* Header */
 .chat-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 18px 24px;
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
-  border-bottom: 1px solid rgba(228, 231, 237, 0.5);
-  backdrop-filter: blur(10px);
+  padding: 16px 20px;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
 }
 
 .chat-info {
@@ -181,9 +182,10 @@ export default {
   align-items: center;
 }
 
-.chat-info >>> .el-avatar {
-  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
-  border: 2px solid white;
+.chat-info .el-avatar {
+  background: #0ea5e9;
+  color: #fff;
+  font-weight: 600;
 }
 
 .chat-details {
@@ -191,56 +193,55 @@ export default {
 }
 
 .chat-name {
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 600;
-  color: #303133;
-  margin-bottom: 4px;
+  color: #1e293b;
+  margin-bottom: 2px;
 }
 
 .chat-status {
   font-size: 12px;
-  color: #909399;
+  color: #94a3b8;
   display: flex;
   align-items: center;
 }
 
-.chat-status::before {
-  content: '';
+.status-dot {
   width: 6px;
   height: 6px;
-  background: #67c23a;
+  background: #94a3b8;
   border-radius: 50%;
   margin-right: 6px;
+  transition: background 0.2s;
+}
+
+.status-dot.online {
+  background: #22c55e;
 }
 
 .el-dropdown-link {
   cursor: pointer;
-  font-size: 20px;
-  color: #909399;
-  padding: 8px;
-  border-radius: 50%;
-  transition: all 0.3s;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: #64748b;
+  transition: all 0.2s;
 }
 
 .el-dropdown-link:hover {
-  background: rgba(102, 126, 234, 0.1);
-  color: #667eea;
-  transform: rotate(90deg);
+  background: #f1f5f9;
+  color: #1e293b;
 }
 
+/* Message List */
 .message-list {
   flex: 1;
   overflow-y: auto;
-  padding: 24px;
-  background: 
-    linear-gradient(135deg, rgba(102, 126, 234, 0.02) 0%, rgba(118, 75, 162, 0.02) 100%),
-    repeating-linear-gradient(
-      0deg,
-      transparent,
-      transparent 40px,
-      rgba(102, 126, 234, 0.03) 40px,
-      rgba(102, 126, 234, 0.03) 41px
-    );
+  padding: 20px;
+  background: #f8fafc;
 }
 
 .message-list::-webkit-scrollbar {
@@ -252,24 +253,25 @@ export default {
 }
 
 .message-list::-webkit-scrollbar-thumb {
-  background: rgba(102, 126, 234, 0.3);
+  background: #cbd5e1;
   border-radius: 3px;
 }
 
 .message-list::-webkit-scrollbar-thumb:hover {
-  background: rgba(102, 126, 234, 0.5);
+  background: #94a3b8;
 }
 
+/* Message Items */
 .message-item {
   display: flex;
   margin-bottom: 16px;
-  animation: fadeIn 0.3s ease-in;
+  animation: fadeIn 0.2s ease-out;
 }
 
 @keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -282,7 +284,7 @@ export default {
 }
 
 .message-content {
-  max-width: 65%;
+  max-width: 70%;
   display: flex;
   flex-direction: column;
 }
@@ -293,35 +295,32 @@ export default {
 
 .message-sender {
   font-size: 12px;
-  color: #909399;
-  margin-bottom: 6px;
+  color: #64748b;
+  margin-bottom: 4px;
   font-weight: 500;
   padding: 0 4px;
 }
 
 .message-bubble {
-  padding: 12px 16px;
-  background: white;
-  border-radius: 18px;
+  padding: 10px 14px;
+  background: #ffffff;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
   word-wrap: break-word;
-  box-shadow: 
-    0 2px 8px rgba(0, 0, 0, 0.08),
-    0 1px 2px rgba(0, 0, 0, 0.05);
-  position: relative;
-  transition: all 0.2s;
   line-height: 1.5;
+  font-size: 14px;
+  color: #1e293b;
+  transition: all 0.2s;
 }
 
 .message-bubble:hover {
-  box-shadow: 
-    0 4px 12px rgba(0, 0, 0, 0.12),
-    0 2px 4px rgba(0, 0, 0, 0.08);
-  transform: translateY(-1px);
+  border-color: #cbd5e1;
 }
 
 .message-item.own-message .message-bubble {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  background: #0ea5e9;
+  border-color: #0ea5e9;
+  color: #ffffff;
   border-bottom-right-radius: 4px;
 }
 
@@ -329,61 +328,35 @@ export default {
   border-bottom-left-radius: 4px;
 }
 
-.message-item.own-message .message-bubble::after {
-  content: '';
-  position: absolute;
-  right: -8px;
-  bottom: 12px;
-  width: 0;
-  height: 0;
-  border: 8px solid transparent;
-  border-left-color: #764ba2;
-  border-right: none;
-}
-
-.message-item:not(.own-message) .message-bubble::after {
-  content: '';
-  position: absolute;
-  left: -8px;
-  bottom: 12px;
-  width: 0;
-  height: 0;
-  border: 8px solid transparent;
-  border-right-color: white;
-  border-left: none;
-}
-
 .message-time {
   font-size: 11px;
-  color: #c0c4cc;
-  margin-top: 6px;
+  color: #94a3b8;
+  margin-top: 4px;
   padding: 0 4px;
 }
 
-.message-item.own-message .message-time {
-  color: #c0c4cc;
-}
-
+/* Input Area */
 .chat-input {
-  border-top: 1px solid rgba(228, 231, 237, 0.5);
-  padding: 20px 24px;
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(10px);
+  border-top: 1px solid #e2e8f0;
+  padding: 16px 20px;
+  background: #ffffff;
 }
 
 .chat-input >>> .el-textarea__inner {
   border-radius: 12px;
-  border: 1px solid #e4e7ed;
-  padding: 12px 16px;
+  border: 1px solid #e2e8f0;
+  padding: 12px 14px;
   font-size: 14px;
   line-height: 1.5;
-  transition: all 0.3s;
+  transition: all 0.2s;
   resize: none;
+  background: #f8fafc;
 }
 
 .chat-input >>> .el-textarea__inner:focus {
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  border-color: #0ea5e9;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
 }
 
 .input-actions {
@@ -393,30 +366,27 @@ export default {
 }
 
 .input-actions >>> .el-button {
-  border-radius: 20px;
-  padding: 10px 24px;
+  border-radius: 10px;
+  padding: 10px 20px;
   font-weight: 500;
-  transition: all 0.3s;
+  transition: all 0.2s;
 }
 
 .input-actions >>> .el-button--primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border: none;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+  background: #0ea5e9;
+  border-color: #0ea5e9;
 }
 
 .input-actions >>> .el-button--primary:hover {
-  box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
-  transform: translateY(-2px);
-}
-
-.input-actions >>> .el-button--primary:active {
-  transform: translateY(0);
+  background: #0284c7;
+  border-color: #0284c7;
+  transform: translateY(-1px);
 }
 
 .input-actions >>> .el-button.is-disabled {
-  background: #e4e7ed;
-  box-shadow: none;
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+  color: #94a3b8;
 }
 </style>
 
